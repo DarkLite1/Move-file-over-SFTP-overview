@@ -514,7 +514,7 @@ end {
                 if ($excelData) {
                     $logFilePath = Join-Path -Path $logFolderPath -ChildPath (
                         '{0} - {1} ({2}).xlsx' -f
-                        $scriptStartTime.ToString('yyyy_MM_dd'),
+                        $scriptStartTime.ToString('yyyy_MM_dd_HHmmss'),
                         $scriptName,
                         $jsonFileItem.BaseName
                     )
