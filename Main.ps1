@@ -437,14 +437,14 @@ process {
                     foreach ($action in $task.Actions) {
                         foreach ($path in @($action.Paths)) {
                             [PSCustomObject]@{
-                                FileName           = $jsonFile.BaseName
-                                TaskName           = $task.TaskName
-                                SftpComputerName   = $task.Sftp.ComputerName
-                                SftpPort           = if ($task.Sftp.Port) { $task.Sftp.Port } else { 22 }
-                                Source             = $path.Source
-                                Destination        = $path.Destination
-                                MatchFileNameRegex = $task.Option.MatchFileNameRegex
-                                OverwriteFile      = $task.Option.OverwriteFile
+                                FileName            = $jsonFile.BaseName
+                                TaskName            = $task.TaskName
+                                SftpComputerName    = $task.Sftp.ComputerName
+                                SftpPort            = if ($task.Sftp.Port) { $task.Sftp.Port } else { 22 }
+                                Source              = $path.Source
+                                Destination         = $path.Destination
+                                MatchFileNameRegex  = $task.Option.MatchFileNameRegex
+                                OverwriteFile       = $task.Option.OverwriteFile
                                 ExcludeZeroSizeFile = $task.Option.ExcludeZeroSizeFile
                             }
                         }
@@ -602,57 +602,29 @@ end {
 
         #region Send email
         try {
-            $isSendMail = $false
+            #region Test mandatory fields
+            @{
+                'From'                 = $sendMail.From
+                'Smtp.ServerName'      = $sendMail.Smtp.ServerName
+                'Smtp.Port'            = $sendMail.Smtp.Port
+                'AssemblyPath.MailKit' = $sendMail.AssemblyPath.MailKit
+                'AssemblyPath.MimeKit' = $sendMail.AssemblyPath.MimeKit
+            }.GetEnumerator() |
+            Where-Object { -not $_.Value } | ForEach-Object {
+                throw "Input file property 'Settings.SendMail.$($_.Key)' cannot be blank"
+            }
+            #endregion
 
-            switch ($sendMail.When) {
-                'Never' {
-                    break
-                }
-                'Always' {
-                    $isSendMail = $true
-                    break
-                }
-                'OnError' {
-                    if ($systemErrors.Count) {
-                        $isSendMail = $true
-                    }
-                    break
-                }
-                'OnErrorOrAction' {
-                    if ($systemErrors.Count -or $excelData) {
-                        $isSendMail = $true
-                    }
-                    break
-                }
-                default {
-                    throw "SendMail.When '$($sendMail.When)' not supported. Supported values are 'Never', 'Always', 'OnError' or 'OnErrorOrAction'."
-                }
+            $mailParams = @{
+                From                = Get-StringValueHC $sendMail.From
+                Subject             = "$scriptName"
+                SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
+                SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
+                MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
+                MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
             }
 
-            if ($isSendMail) {
-                #region Test mandatory fields
-                @{
-                    'From'                = $sendMail.From
-                    'Smtp.ServerName'     = $sendMail.Smtp.ServerName
-                    'Smtp.Port'           = $sendMail.Smtp.Port
-                    'AssemblyPath.MailKit' = $sendMail.AssemblyPath.MailKit
-                    'AssemblyPath.MimeKit' = $sendMail.AssemblyPath.MimeKit
-                }.GetEnumerator() |
-                Where-Object { -not $_.Value } | ForEach-Object {
-                    throw "Input file property 'Settings.SendMail.$($_.Key)' cannot be blank"
-                }
-                #endregion
-
-                $mailParams = @{
-                    From                = Get-StringValueHC $sendMail.From
-                    Subject             = "$scriptName"
-                    SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
-                    SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
-                    MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
-                    MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
-                }
-
-                $mailParams.Body = @"
+            $mailParams.Body = @"
 <!DOCTYPE html>
 <html>
 <head>
@@ -740,63 +712,63 @@ end {
 </html>
 "@
 
-                if ($sendMail.FromDisplayName) {
-                    $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
-                }
-
-                if ($sendMail.Subject) {
-                    $mailParams.Subject = '{0}, {1}' -f
-                    $mailParams.Subject, $sendMail.Subject
-                }
-
-                if ($sendMail.To) {
-                    $mailParams.To = $sendMail.To
-                }
-
-                if ($sendMail.Bcc) {
-                    $mailParams.Bcc = $sendMail.Bcc
-                }
-
-                if ($systemErrors.Count) {
-                    $mailParams.Priority = 'High'
-                    $mailParams.Subject = '{0} error{1}, {2}' -f
-                    $systemErrors.Count,
-                    $(if ($systemErrors.Count -ne 1) { 's' }),
-                    $mailParams.Subject
-                }
-
-                if ($allLogFilePaths) {
-                    $mailParams.Attachments = $allLogFilePaths |
-                    Sort-Object -Unique
-                }
-
-                if ($sendMail.Smtp.ConnectionType) {
-                    $mailParams.SmtpConnectionType = Get-StringValueHC $sendMail.Smtp.ConnectionType
-                }
-
-                #region Create SMTP credential
-                $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
-                $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
-
-                if ($smtpUserName -and $smtpPassword) {
-                    try {
-                        $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
-
-                        $credential = New-Object System.Management.Automation.PSCredential($smtpUserName, $securePassword)
-
-                        $mailParams.Credential = $credential
-                    }
-                    catch {
-                        throw "Failed to create credential: $_"
-                    }
-                }
-                elseif ($smtpUserName -or $smtpPassword) {
-                    throw "Both 'Settings.SendMail.Smtp.Username' and 'Settings.SendMail.Smtp.Password' are required when authentication is needed."
-                }
-                #endregion
-
-                Send-MailKitMessageHC @mailParams
+            if ($sendMail.FromDisplayName) {
+                $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
             }
+
+            if ($sendMail.Subject) {
+                $mailParams.Subject = '{0}, {1}' -f
+                $mailParams.Subject, $sendMail.Subject
+            }
+
+            if ($sendMail.To) {
+                $mailParams.To = $sendMail.To
+            }
+
+            if ($sendMail.Bcc) {
+                $mailParams.Bcc = $sendMail.Bcc
+            }
+
+            if ($systemErrors.Count) {
+                $mailParams.Priority = 'High'
+                $mailParams.Subject = '{0} error{1}, {2}' -f
+                $systemErrors.Count,
+                $(if ($systemErrors.Count -ne 1) { 's' }),
+                $mailParams.Subject
+            }
+
+            if ($allLogFilePaths) {
+                $mailParams.Attachments = $allLogFilePaths |
+                Sort-Object -Unique
+            }
+
+            if ($sendMail.Smtp.ConnectionType) {
+                $mailParams.SmtpConnectionType = Get-StringValueHC $sendMail.Smtp.ConnectionType
+            }
+
+            #region Create SMTP credential
+            $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
+            $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
+
+            if ($smtpUserName -and $smtpPassword) {
+                try {
+                    $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
+
+                    $credential = New-Object System.Management.Automation.PSCredential($smtpUserName, $securePassword)
+
+                    $mailParams.Credential = $credential
+                }
+                catch {
+                    throw "Failed to create credential: $_"
+                }
+            }
+            elseif ($smtpUserName -or $smtpPassword) {
+                throw "Both 'Settings.SendMail.Smtp.Username' and 'Settings.SendMail.Smtp.Password' are required when authentication is needed."
+            }
+            #endregion
+
+            Send-MailKitMessageHC @mailParams
+            
         }
         catch {
             $systemErrors.Add(

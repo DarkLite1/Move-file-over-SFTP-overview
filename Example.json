@@ -3,7 +3,6 @@
   "Settings": {
     "ScriptName": "Move file over SFTP overview",
     "SendMail": {
-      "When": "Always",
       "From": "ENV:SCRIPT_ADMIN_EMAIL_ADDRESS",
       "To": ["007@example.com"],
       "Subject": "",

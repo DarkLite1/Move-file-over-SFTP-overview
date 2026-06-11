@@ -8,7 +8,6 @@ BeforeAll {
         Settings = @{
             ScriptName   = 'Test (Brecht)'
             SendMail     = @{
-                When         = 'Always'
                 From         = 'm@example.com'
                 To           = @('007@example.com')
                 Subject      = 'Email subject'
@@ -572,28 +571,15 @@ Describe 'SendMail.When' {
         Out-File (Join-Path $testJsonFolder 'MailTest.json')
     }
 
-    It "should send mail when 'Always'" {
+    It "should send mail" {
         $testNewInputFile = Copy-ObjectHC $testInputFile
         $testNewInputFile.Path = $testJsonFolder
-        $testNewInputFile.Settings.SendMail.When = 'Always'
 
         Test-NewJsonFileHC
 
         .$testScript @testParams
 
         Should -Invoke Send-MailKitMessageHC -Times 1
-    }
-
-    It "should not send mail when 'Never'" {
-        $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Path = $testJsonFolder
-        $testNewInputFile.Settings.SendMail.When = 'Never'
-
-        Test-NewJsonFileHC
-
-        .$testScript @testParams
-
-        Should -Invoke Send-MailKitMessageHC -Times 0
     }
 
     AfterAll {
