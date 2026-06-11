@@ -147,6 +147,8 @@ Describe 'create a system error when' {
             { .$testScript @testParams } | Should -Not -Throw
 
             $LASTEXITCODE | Should -Be 1
+
+            Should -Invoke Send-MailKitMessageHC -Times 1
         }
         It "property 'Path' folder does not exist" {
             $testNewInputFile = Copy-ObjectHC $testInputFile
@@ -157,6 +159,8 @@ Describe 'create a system error when' {
             { .$testScript @testParams } | Should -Not -Throw
 
             $LASTEXITCODE | Should -Be 1
+
+            Should -Invoke Send-MailKitMessageHC -Times 1
         }
     }
 }
